@@ -17,18 +17,53 @@
       color: white;
       font-family: Arial, sans-serif;
     }
+    #score-display {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      color: white;
+      font-size: 18px;
+      padding: 10px;
+      border-radius: 5px;
+      z-index: 100;
+      background-color: rgba(0, 0, 0, 0.3); /* Semi-transparent black background */
+      font-family: Arial, sans-serif;
+      font-weight: bold;
+    }
+    #restart-button {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 10px 20px;
+      font-size: 18px;
+      background-color: #0ea5e9;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: Arial, sans-serif;
+      font-weight: bold;
+      display: none;
+      z-index: 100;
+    }
+    #restart-button:hover {
+      background-color: #0284c7;
+    }
   </style>
 </head>
 <body>
   <div id="info">Use WASD to move, SPACE to jump<br>Avoid the cacti!</div>
-  
+  <div id="score-display">Score: 0</div>
+  <button id="restart-button">Restart Game</button>
+
   <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
   
   <script type="importmap">
     {
       "imports": {
-        "three": "https://unpkg.com/three@0.150.1/build/three.module.js",
-        "three/addons/": "https://unpkg.com/three@0.150.1/examples/jsm/"
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
       }
     }
   </script>
@@ -38,6 +73,14 @@
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
     import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
   
+    // Get restart button element
+    const restartButton = document.getElementById('restart-button');
+
+    // Create Audio object for jump sound
+    const jumpSound = new Audio('./resources/SFX/Jump.mp3');
+    // Create Audio object for 100 point sound
+    const pointSound = new Audio('./resources/SFX/Point.wav');
+
     // Create scene with blue fog for depth perception
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0x0c4a6e)
@@ -180,10 +223,15 @@
     
     // Add jump flag to track if player is jumping
     player.isJumping = false;
+    // To track if player is on the ground
+    player.isOnGround = false;
     
     player.applyGravity = function(ground) {
       this.velocity.y += -0.002;  // gravity value
       
+      // Check ground collision before movement
+      const wasOnGround = this.isOnGround;
+
       if (
         boxCollision({
           box1: player,
@@ -193,7 +241,21 @@
         const friction = 0.5;
         this.velocity.y *= friction;
         this.velocity.y = -this.velocity.y;
-      } else this.position.y += this.velocity.y;
+        this.isOnGround = true; // Player is now on ground
+      } else {
+        this.position.y += this.velocity.y;
+        this.isOnGround = false; // Player is not on ground
+      }
+
+      // If we just landed, update animation and jump state
+      if (!wasOnGround && this.isOnGround && this.isJumping) {
+        this.isJumping = false;
+        if (keys.a.pressed || keys.d.pressed || keys.s.pressed || keys.w.pressed) {
+          setAnimation('run');
+        } else {
+          setAnimation('idle');
+        }
+      }
     };
     
     // Update player's update function to handle jump state detection
@@ -206,17 +268,6 @@
       const prevY = this.position.y;
       
       this.applyGravity(ground);
-      
-      // Check if we just landed
-      if (this.isJumping && this.velocity.y <= 0) {
-        this.isJumping = false;
-        // If any movement key is pressed, go to run animation, otherwise idle
-        if (keys.a.pressed || keys.d.pressed || keys.s.pressed || keys.w.pressed) {
-          setAnimation('run');
-        } else {
-          setAnimation('idle');
-        }
-      }
     };
     
     scene.add(player);
@@ -341,6 +392,46 @@
     ground.receiveShadow = true
     scene.add(ground)
   
+    // Add a death plane below the ground
+    const deathPlaneGeometry = new THREE.PlaneGeometry(30, 60);
+    const deathPlaneMaterial = new THREE.MeshBasicMaterial({ 
+      color: 0xff0000,
+      transparent: true,
+      opacity: 0.0, // Completely invisible
+      side: THREE.DoubleSide
+    });
+    
+    const deathPlane = new THREE.Mesh(deathPlaneGeometry, deathPlaneMaterial);
+    deathPlane.position.set(0, -10, 0); // Position it well below the ground
+    deathPlane.rotation.x = Math.PI / 2; // Rotate to be horizontal
+    
+    // Add collision properties to the death plane
+    deathPlane.width = 30;
+    deathPlane.height = 0.1; // Thin height for collision detection
+    deathPlane.depth = 60;
+    deathPlane.left = deathPlane.position.x - deathPlane.width / 2;
+    deathPlane.right = deathPlane.position.x + deathPlane.width / 2;
+    deathPlane.bottom = deathPlane.position.y - deathPlane.height / 2;
+    deathPlane.top = deathPlane.position.y + deathPlane.height / 2;
+    deathPlane.front = deathPlane.position.z + deathPlane.depth / 2;
+    deathPlane.back = deathPlane.position.z - deathPlane.depth / 2;
+    deathPlane.updateSides = function() {
+      this.left = this.position.x - this.width / 2;
+      this.right = this.position.x + this.width / 2;
+      this.bottom = this.position.y - this.height / 2;
+      this.top = this.position.y + this.height / 2;
+      this.front = this.position.z + this.depth / 2;
+      this.back = this.position.z - this.depth / 2;
+    };
+    
+    // Add a wireframe outline to make the death plane visible
+    const wireframeGeometry = new THREE.EdgesGeometry(deathPlaneGeometry);
+    const wireframeMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
+    const wireframe = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
+    
+    deathPlane.add(wireframe);
+    scene.add(deathPlane);
+
     // Add strong directional light
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1)
     directionalLight.position.set(0, 10, 5)
@@ -381,10 +472,15 @@
           if (!player.isJumping) setAnimation('run')
           break
         case 'Space':
-          if (!player.isJumping) {
+          if (player.isOnGround && !player.isJumping) {
             player.velocity.y = 0.08
             player.isJumping = true
+            player.isOnGround = false
             setAnimation('jump')
+
+            // Play jump sound effect
+            jumpSound.currentTime = 0 // Reset sound to beginning
+            jumpSound.play().catch(e => console.error("Error playing jump sound:", e))
           }
           break
       }
@@ -553,12 +649,79 @@
       }
     }
   
+    // Function to handle game over
+    function handleGameOver(reason) {
+      document.getElementById('info').innerHTML = `Game Over!<br>Your score: ${score}<br>${reason}`;
+      document.getElementById('info').style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+      document.getElementById('info').style.padding = '10px';
+      document.getElementById('info').style.borderRadius = '5px';
+      document.getElementById('score-display').style.display = 'None';
+      restartButton.style.display = 'block';
+      gameOver = true;
+    }
+
     // Game state
     const enemies = []
     let frames = 0
     let spawnRate = 120
     let gameOver = false
-    
+    let score = 0;
+    let scoreDisplay = document.getElementById('score-display');
+    let lastScoreUpdateTime = 0
+    const scoreUpdateInterval = 100 // Update score every 100ms
+
+    // Function to update the score display
+    function updateScoreDisplay() {
+      scoreDisplay.textContent = `Score: ${score}`;
+    }
+
+    // Get the current time in milliseconds
+    function getCurrentTime() {
+      return new Date().getTime()
+    }
+
+    // Function to restart the game
+    function restartGame() {
+      // Reset game state
+      gameOver = false
+      score = 0
+      frames = 0
+      spawnRate = 120
+      lastScoreUpdateTime = getCurrentTime()
+      
+      // Reset UI elements
+      document.getElementById('info').innerHTML = 'Use WASD to move, SPACE to jump<br>Avoid the cacti!'
+      document.getElementById('info').style.backgroundColor = ''
+      document.getElementById('info').style.padding = ''
+      document.getElementById('info').style.borderRadius = ''
+      scoreDisplay.style.display = 'block'
+      restartButton.style.display = 'none'
+      updateScoreDisplay()
+      
+      // Remove all existing enemies
+      enemies.forEach(enemy => {
+        scene.remove(enemy)
+      })
+      enemies.length = 0
+      
+      // Reset player position and velocity
+      player.position.set(0, 0, 0)
+      player.velocity.x = 0
+      player.velocity.y = -0.01
+      player.velocity.z = 0
+      player.rotation.y = 0
+      player.isJumping = false
+      player.isOnGround = false
+      
+      // Reset animation if it exists
+      if (player.mixer) {
+        setAnimation('idle')
+      }
+    }
+
+    // Add event listener to restart button
+    restartButton.addEventListener('click', restartGame)
+
     // Animation loop
     function animate() {
       const animationId = requestAnimationFrame(animate)
@@ -576,6 +739,22 @@
       
       if (gameOver) return
   
+      // Update death plane sides
+      deathPlane.updateSides();
+
+      // Update score based on time survived
+      const currentTime = getCurrentTime()
+      if (currentTime - lastScoreUpdateTime >= scoreUpdateInterval) {
+        if (score % 100 == 0 && score > 0) {
+          // Play jump sound effect
+          pointSound.currentTime = 0 // Reset sound to beginning
+          pointSound.play().catch(e => console.error("Error playing point sound:", e))
+        }
+        score += 1 // Increase score by 1 point every 100ms
+        updateScoreDisplay()
+        lastScoreUpdateTime = currentTime
+      }
+
       // Player movement
       player.velocity.x = 0
       player.velocity.z = 0
@@ -616,7 +795,19 @@
   
       // Update player
       player.update(ground)
+      player.updateSides()
       
+      // Check for collision with death plane
+      if (
+        boxCollision({
+          box1: player,
+          box2: deathPlane
+        })
+      ) {
+        handleGameOver("You fell off the map!");
+        return;
+      }
+
       // Update enemies
       enemies.forEach((enemy) => {
         enemy.update(ground)
@@ -626,8 +817,7 @@
             box2: enemy
           })
         ) {
-          gameOver = true
-          document.getElementById('info').innerHTML = 'Game Over! Refresh to restart';
+          handleGameOver("You hit a cactus!");
         }
       })
         
@@ -662,6 +852,10 @@
       frames++
     }
     
+    // Initialize the score display and start time before the game begins
+    updateScoreDisplay()
+    lastScoreUpdateTime = getCurrentTime()
+
     // Start the game
     animate()
   </script>
