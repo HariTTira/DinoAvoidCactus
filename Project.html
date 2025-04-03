@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>3D Cube Game</title>
+  <title>DINO DASH</title>
   <style>
     body {
       margin: 0;
@@ -11,7 +11,6 @@
     }
     #info {
       position: absolute;
-      top: 10px;
       width: 100%;
       text-align: center;
       color: white;
@@ -26,15 +25,12 @@
       padding: 10px;
       border-radius: 5px;
       z-index: 100;
-      background-color: rgba(0, 0, 0, 0.3); /* Semi-transparent black background */
+      background-color: rgba(0, 0, 0, 0.3);
       font-family: Arial, sans-serif;
       font-weight: bold;
+      display: none;
     }
-    #restart-button {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
+    .game-button {
       padding: 10px 20px;
       font-size: 18px;
       background-color: #0ea5e9;
@@ -44,18 +40,97 @@
       cursor: pointer;
       font-family: Arial, sans-serif;
       font-weight: bold;
-      display: none;
+      margin: 10px;
       z-index: 100;
     }
-    #restart-button:hover {
+    .game-button:hover {
       background-color: #0284c7;
+    }
+    #start-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background-color: rgba(0, 0, 0, 0.7);
+      z-index: 200;
+    }
+    #game-title {
+      font-size: 48px;
+      color: white;
+      font-family: Arial, sans-serif;
+      font-weight: bold;
+      margin-bottom: 30px;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    }
+    #game-over-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background-color: rgba(0, 0, 0, 0.7);
+      z-index: 200;
+      display: none;
+    }
+    #game-over-title {
+      font-size: 48px;
+      color: white;
+      font-family: Arial, sans-serif;
+      font-weight: bold;
+      margin-bottom: 10px;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    }
+    #game-over-score {
+      font-size: 24px;
+      color: white;
+      font-family: Arial, sans-serif;
+      margin-bottom: 10px;
+    }
+    #game-over-reason {
+      font-size: 20px;
+      color: white;
+      font-family: Arial, sans-serif;
+      margin-bottom: 30px;
+    }
+    #button-container {
+      display: flex;
+      justify-content: center;
+    }
+    .unselectable {
+      -webkit-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
     }
   </style>
 </head>
 <body>
-  <div id="info">Use WASD to move, SPACE to jump<br>Avoid the cacti!</div>
-  <div id="score-display">Score: 0</div>
-  <button id="restart-button">Restart Game</button>
+  
+  <div id="score-display" class="unselectable">Score: 0</div>
+
+  <div id="start-screen" class="unselectable">
+    <div id="game-title">DINO DASH</div>
+    <div id="info">Use WASD to move, SPACE to jump<br>Avoid the cacti!</div>
+    <button id="start-button" class="game-button">Start Game</button>
+  </div>
+
+  <div id="game-over-screen" class="unselectable">
+    <div id="game-over-title">GAME OVER</div>
+    <div id="game-over-score">Score: 0</div>
+    <div id="game-over-reason">You hit a cactus!</div>
+    <div id="button-container">
+      <button id="restart-button" class="game-button">Play Again</button>
+      <button id="menu-button" class="game-button">Back to Menu</button>
+    </div>
+  </div>
 
   <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
   
@@ -74,8 +149,14 @@
     import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
     import { CloudBackground } from './background.js';
   
-    // Get restart button element
+    // Get UI elements
+    const startScreen = document.getElementById('start-screen');
+    const startButton = document.getElementById('start-button');
+    const gameOverScreen = document.getElementById('game-over-screen');
     const restartButton = document.getElementById('restart-button');
+    const menuButton = document.getElementById('menu-button');
+    const gameOverScore = document.getElementById('game-over-score');
+    const gameOverReason = document.getElementById('game-over-reason');;
 
     // Create Audio object for jump sound
     const jumpSound = new Audio('./resources/SFX/Jump.mp3');
@@ -524,6 +605,7 @@
   
     // Update the keydown event listener to handle jump animation
     window.addEventListener('keydown', (event) => {
+      // Game is active, process normal controls
       switch (event.code) {
         case 'KeyA':
           keys.a.pressed = true
@@ -721,13 +803,47 @@
   
     // Function to handle game over
     function handleGameOver(reason) {
-      document.getElementById('info').innerHTML = `Game Over!<br>Your score: ${score}<br>${reason}`;
-      document.getElementById('info').style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-      document.getElementById('info').style.padding = '10px';
-      document.getElementById('info').style.borderRadius = '5px';
-      document.getElementById('score-display').style.display = 'None';
-      restartButton.style.display = 'block';
+      // Update game over screen
+      gameOverScore.textContent = `Score: ${score}`;
+      gameOverReason.textContent = reason;
+      
+      // Show game over screen
+      gameOverScreen.style.display = 'flex';
+      document.getElementById('score-display').style.display = 'none';
+      
+      // Set game state
       gameOver = true;
+    }
+
+    // Function to start the game
+    function startGame() {
+      // Hide start screen
+      startScreen.style.display = 'none';
+      
+      // Show score display
+      scoreDisplay.style.display = 'block';
+      
+      // Reset game state
+      gameOver = false;
+      score = 0;
+      frames = 0;
+      spawnRate = 120;
+      lastScoreUpdateTime = getCurrentTime();
+      updateScoreDisplay();
+      
+      // Reset player position and velocity
+      player.position.set(0, 0, 0);
+      player.velocity.x = 0;
+      player.velocity.y = -0.01;
+      player.velocity.z = 0;
+      player.rotation.y = 0;
+      player.isJumping = false;
+      player.isOnGround = false;
+      
+      // Reset animation if it exists
+      if (player.mixer) {
+        setAnimation('idle');
+      }
     }
 
     // Game state
@@ -752,45 +868,74 @@
 
     // Function to restart the game
     function restartGame() {
-      // Reset game state
-      gameOver = false
-      score = 0
-      frames = 0
-      spawnRate = 120
-      lastScoreUpdateTime = getCurrentTime()
+      // Hide game over screen
+      gameOverScreen.style.display = 'none';
       
-      // Reset UI elements
-      document.getElementById('info').innerHTML = 'Use WASD to move, SPACE to jump<br>Avoid the cacti!'
-      document.getElementById('info').style.backgroundColor = ''
-      document.getElementById('info').style.padding = ''
-      document.getElementById('info').style.borderRadius = ''
-      scoreDisplay.style.display = 'block'
-      restartButton.style.display = 'none'
-      updateScoreDisplay()
+      // Show score display
+      scoreDisplay.style.display = 'block';
+      
+      // Reset game state
+      gameOver = false;
+      score = 0;
+      frames = 0;
+      spawnRate = 120;
+      lastScoreUpdateTime = getCurrentTime();
+      updateScoreDisplay();
       
       // Remove all existing enemies
       enemies.forEach(enemy => {
-        scene.remove(enemy)
-      })
-      enemies.length = 0
+        scene.remove(enemy);
+      });
+      enemies.length = 0;
       
       // Reset player position and velocity
-      player.position.set(0, 0, 0)
-      player.velocity.x = 0
-      player.velocity.y = -0.01
-      player.velocity.z = 0
-      player.rotation.y = 0
-      player.isJumping = false
-      player.isOnGround = false
+      player.position.set(0, 0, 0);
+      player.velocity.x = 0;
+      player.velocity.y = -0.01;
+      player.velocity.z = 0;
+      player.rotation.y = 0;
+      player.isJumping = false;
+      player.isOnGround = false;
       
       // Reset animation if it exists
       if (player.mixer) {
-        setAnimation('idle')
+        setAnimation('idle');
       }
     }
 
-    // Add event listener to restart button
-    restartButton.addEventListener('click', restartGame)
+    // Function to return to main menu
+    function returnToMenu() {
+      // Hide game over screen
+      gameOverScreen.style.display = 'none';
+      
+      // Show start screen
+      startScreen.style.display = 'flex';
+      
+      // Remove all existing enemies
+      enemies.forEach(enemy => {
+        scene.remove(enemy);
+      });
+      enemies.length = 0;
+      
+      // Reset player position and velocity
+      player.position.set(0, 0, 0);
+      player.velocity.x = 0;
+      player.velocity.y = -0.01;
+      player.velocity.z = 0;
+      player.rotation.y = 0;
+      player.isJumping = false;
+      player.isOnGround = false;
+      
+      // Reset animation if it exists
+      if (player.mixer) {
+        setAnimation('idle');
+      }
+    }
+
+    // Add event listeners for UI buttons
+    startButton.addEventListener('click', startGame);
+    restartButton.addEventListener('click', restartGame);
+    menuButton.addEventListener('click', returnToMenu);
 
     // Animation loop
     function animate() {
@@ -927,6 +1072,8 @@
     // Initialize the score display and start time before the game begins
     updateScoreDisplay()
     lastScoreUpdateTime = getCurrentTime()
+
+    gameOver = true
 
     // Start the game
     animate()
