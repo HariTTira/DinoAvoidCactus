@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
-import { CloudBackground } from '../background.js';
+import { CloudBackground } from './components/CloudBackground.js';
 import { Player } from './components/Player.js'
 
 // Get UI elements
@@ -11,7 +11,7 @@ const gameOverScreen = document.getElementById('game-over-screen');
 const restartButton = document.getElementById('restart-button');
 const menuButton = document.getElementById('menu-button');
 const gameOverScore = document.getElementById('game-over-score');
-const gameOverReason = document.getElementById('game-over-reason');;
+const gameOverReason = document.getElementById('game-over-reason');
 
 // Create Audio object for jump sound
 const jumpSound = new Audio('./resources/SFX/Jump.mp3');
