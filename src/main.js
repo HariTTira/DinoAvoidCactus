@@ -7,6 +7,7 @@ import { Box } from './components/Box.js'
 import { DeathPlane } from './components/DeathPlane.js';
 import { CollisionUtils } from './utils/Utility.js';
 import { Enemy } from './components/Enemy.js';
+import { InputManager } from './InputManager.js';
 
 const startScreen = document.getElementById('start-screen');
 const startButton = document.getElementById('start-button');
@@ -154,66 +155,8 @@ scene.add(directionalLight)
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
 scene.add(ambientLight)
 
-const keys = {
-  a: { pressed: false },
-  d: { pressed: false },
-  s: { pressed: false },
-  w: { pressed: false }
-}
-
-window.addEventListener('keydown', (event) => {
-  switch (event.code) {
-    case 'KeyA':
-      keys.a.pressed = true
-      if (!player.isJumping) player.setAnimation('run',keys)
-      break
-    case 'KeyD':
-      keys.d.pressed = true
-      if (!player.isJumping) player.setAnimation('run',keys)
-      break
-    case 'KeyS':
-      keys.s.pressed = true
-      if (!player.isJumping) player.setAnimation('run',keys)
-      break
-    case 'KeyW':
-      keys.w.pressed = true
-      if (!player.isJumping) player.setAnimation('run',keys)
-      break
-    case 'Space':
-      if (player.isOnGround && !player.isJumping) {
-        player.velocity.y += 0.08
-        player.position.y += player.velocity.y
-        player.isJumping = true
-        player.isOnGround = false
-        player.setAnimation('jump', keys)
-
-        jumpSound.currentTime = 0 
-        jumpSound.play().catch(e => console.error("Error playing jump sound:", e))
-      }
-      break
-  }
-})
-
-window.addEventListener('keyup', (event) => {
-  switch (event.code) {
-    case 'KeyA':
-      keys.a.pressed = false
-      break
-    case 'KeyD':
-      keys.d.pressed = false
-      break
-    case 'KeyS':
-      keys.s.pressed = false
-      break
-    case 'KeyW':
-      keys.w.pressed = false
-      break
-  }
-  
-  if (!keys.a.pressed && !keys.d.pressed && !keys.s.pressed && !keys.w.pressed && !player.isJumping) {
-    player.setAnimation('idle',keys)
-  }
-})
+// Create input manager
+const inputManager = new InputManager(player, jumpSound);
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight
@@ -284,7 +227,7 @@ function startGame() {
   player.isOnGround = false;
   
   if (player.mixer) {
-    player.setAnimation('idle',keys);
+    player.setAnimation('idle', inputManager.getKeys());
   }
 }
 
@@ -331,7 +274,7 @@ function restartGame() {
   player.isOnGround = false;
   
   if (player.mixer) {
-    player.setAnimation('idle',keys);
+    player.setAnimation('idle', inputManager.getKeys());
   }
 }
 
@@ -354,7 +297,7 @@ function returnToMenu() {
   player.isOnGround = false;
   
   if (player.mixer) {
-    player.setAnimation('idle',keys);
+    player.setAnimation('idle', inputManager.getKeys());
   }
 }
 
@@ -384,42 +327,10 @@ function animate() {
     lastScoreUpdateTime = currentTime
   }
 
-  player.velocity.x = 0
-  player.velocity.z = 0
+  // Update input manager (handles player movement)
+  inputManager.update();
   
-  if (keys.a.pressed) {
-    player.velocity.x = -0.05
-    if (!player.isJumping) {
-      player.setAnimation('run',keys)
-      player.rotation.y = Math.PI / 2
-    }
-  } else if (keys.d.pressed) {
-    player.velocity.x = 0.05
-    if (!player.isJumping) {
-      player.setAnimation('run',keys)
-      player.rotation.y = -Math.PI / 2 
-    }
-  }
-
-  if (keys.s.pressed) {
-    player.velocity.z = 0.05
-    if (!player.isJumping) {
-      player.setAnimation('run',keys)
-      player.rotation.y = Math.PI
-    }
-  } else if (keys.w.pressed) {
-    player.velocity.z = -0.05
-    if (!player.isJumping) {
-      player.setAnimation('run',keys)
-      player.rotation.y = 0 
-    }
-  }
-  
-  if (!keys.a.pressed && !keys.d.pressed && !keys.s.pressed && !keys.w.pressed && !player.isJumping) {
-    player.setAnimation('idle', keys)
-  }
-
-  player.update(ground, keys)
+  player.update(ground, inputManager.getKeys())
   player.updateSides()
   
   if (
