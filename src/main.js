@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { CloudBackground } from '../background.js';
+import { Player } from './components/Player.js'
 
 // Get UI elements
 const startScreen = document.getElementById('start-screen');
@@ -174,163 +175,6 @@ function boxCollision({ box1, box2 }) {
   return xCollision && yCollision && zCollision
 }
 
-class Player extends THREE.Object3D {
-  constructor({
-    width = 1,
-    height = 1,
-    depth = 1,
-    position = { x: 0, y: 0, z: 0 },
-    velocity = { x: 0, y: -0.01, z: 0 }
-  }) {
-    super();
-
-    this.width = width;
-    this.height = height;
-    this.depth = depth;
-
-    this.position.set(position.x, position.y, position.z);
-
-    this.velocity = velocity;
-    this.gravity = -0.002;
-
-    this.isJumping = false;
-    this.isOnGround = false;
-
-    this.actions = {};
-    this.currentAction = null;
-    this.animationState = 'idle';
-
-    this.model = new THREE.Object3D();
-    this.add(this.model);
-  }
-
-  updateSides() {
-    this.right = this.position.x + this.width / 2;
-    this.left = this.position.x - this.width / 2;
-
-    this.bottom = this.position.y - this.height / 2;
-    this.top = this.position.y + this.height / 2;
-
-    this.front = this.position.z + this.depth / 2;
-    this.back = this.position.z - this.depth / 2;
-  }
-
-  applyGravity(ground) {
-    this.velocity.y += this.gravity;
-
-    const wasOnGround = this.isOnGround;
-
-    if (
-      boxCollision({
-        box1: this,
-        box2: ground
-      })
-    ) {
-      const friction = 0.5;
-      this.velocity.y *= friction;
-      this.velocity.y = -this.velocity.y;
-      this.isOnGround = true;
-    } else {
-      this.position.y += this.velocity.y;
-      this.isOnGround = false;
-    }
-
-    if (!wasOnGround && this.isOnGround && this.isJumping) {
-      this.isJumping = false;
-      if (keys.a.pressed || keys.d.pressed || keys.s.pressed || keys.w.pressed) {
-        this.setAnimation('run');
-      } else {
-        this.setAnimation('idle');
-      }
-    }
-  }
-
-  update(ground) {
-    this.updateSides();
-    this.position.x += this.velocity.x;
-    this.position.z += this.velocity.z;
-
-    this.applyGravity(ground);
-  }
-
-  setAnimation(name) {
-    if (this.animationState === name) return;
-
-    if (!this.actions || !this.mixer) return;
-
-    const newAction = this.actions[name];
-    const oldAction = this.currentAction;
-
-    if (newAction === oldAction || !newAction) return;
-
-    if (oldAction) {
-      newAction.time = 0;
-      newAction.enabled = true;
-      newAction.setEffectiveTimeScale(1);
-      newAction.setEffectiveWeight(1);
-      newAction.crossFadeFrom(oldAction, 0.2, true);
-    }
-
-    newAction.play();
-    this.currentAction = newAction;
-    this.animationState = name;
-
-    if (name === 'jump') {
-      this.mixer.addEventListener('finished', (e) => {
-        if (keys.w.pressed || keys.a.pressed || keys.s.pressed || keys.d.pressed) {
-          this.setAnimation('run');
-        } else {
-          this.setAnimation('idle');
-        }
-        this.mixer.removeEventListener('finished', arguments.callee);
-      });
-    }
-  }
-
-  loadModel(loader, path, scale, animations) {
-    loader.load(path, (fbx) => {
-      fbx.scale.set(scale, scale, scale);
-      fbx.rotation.y = Math.PI;
-      fbx.position.y = -this.height / 2;
-
-      const pinkMaterial = new THREE.MeshStandardMaterial({
-        color: 0xFF69B4,
-        roughness: 0.6,
-        metalness: 0.1
-      });
-
-      fbx.traverse((child) => {
-        if (child.isMesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-          child.material = pinkMaterial;
-        }
-      });
-
-      this.model.add(fbx);
-
-      this.mixer = new THREE.AnimationMixer(fbx);
-
-      this.actions = {
-        idle: this.mixer.clipAction(fbx.animations[animations.idle]),
-        run: this.mixer.clipAction(fbx.animations[animations.run]),
-        jump: this.mixer.clipAction(fbx.animations[animations.jump])
-      };
-
-      for (let action in this.actions) {
-        this.actions[action].clampWhenFinished = true;
-        this.actions[action].setLoop(THREE.LoopRepeat);
-      }
-
-      this.actions.jump.setLoop(THREE.LoopOnce);
-      this.actions.jump.timeScale = 1.2;
-
-      this.currentAction = this.actions.idle;
-      this.currentAction.play();
-    });
-  }
-}
-
 // Instantiate the player
 const player = new Player({
   width: 1,
@@ -342,109 +186,12 @@ const player = new Player({
 
 scene.add(player);
 
-// Animation handling system
-// Store animation actions
-player.actions = {};
-player.currentAction = null;
-player.animationState = 'idle'; // Track the current state
-
-// Function to handle animation transitions
-function setAnimation(name) {
-  // If already playing this animation, do nothing
-  if (player.animationState === name) return;
-  
-  // No animations loaded yet
-  if (!player.actions || !player.mixer) return;
-  
-  // Get the new action
-  const newAction = player.actions[name];
-  const oldAction = player.currentAction;
-  
-  // Skip if same action or action doesn't exist
-  if (newAction === oldAction || !newAction) return;
-  
-  // Set up crossfade
-  if (oldAction) {
-    newAction.time = 0;
-    newAction.enabled = true;
-    newAction.setEffectiveTimeScale(1);
-    newAction.setEffectiveWeight(1);
-    newAction.crossFadeFrom(oldAction, 0.2, true);
-  }
-  
-  // Play the new action
-  newAction.play();
-  player.currentAction = newAction;
-  player.animationState = name;
-  
-  // For jump animation, set up a callback to return to idle/run when done
-  if (name === 'jump') {
-    player.mixer.addEventListener('finished', function onJumpFinished(e) {
-      // Return to running if movement keys are pressed, otherwise idle
-      if (keys.w.pressed || keys.a.pressed || keys.s.pressed || keys.d.pressed) {
-        setAnimation('run');
-      } else {
-        setAnimation('idle');
-      }
-      player.mixer.removeEventListener('finished', onJumpFinished);
-    });
-  }
-}
-
 // Load the dinosaur model
 const loader = new FBXLoader(); 
-loader.load('./resources/Dinosaurs/FBX/Velociraptor.fbx', (fbx) => {
-  fbx.scale.set(0.0025, 0.0025, 0.0025); // Adjust size
-  
-  // Rotate 180 degrees to face forward
-  fbx.rotation.y = Math.PI;  // Rotate 180 degrees around the Y axis
-  fbx.position.y = -player.height / 2;  // Move it down by half the player's height
-
-  const pinkMaterial = new THREE.MeshStandardMaterial({
-    color: 0xFF69B4, // SaddleBrown Hex Code
-    roughness: 0.6,
-    metalness: 0.1
-  });
-  
-  // Add the model to our player object
-  player.add(fbx);
-  
-  fbx.traverse((child) => {
-    if (child.isMesh) {
-      child.castShadow = true;
-      child.receiveShadow = true;
-      child.material = pinkMaterial; // Assign brown material
-    }
-  });
-
-  // Handle animations
-  player.mixer = new THREE.AnimationMixer(fbx);
-  
-  // Based on your console.log(fbx.animations), we can see:
-  // 0: Jump animation (index 0)
-  // 2: Run animation (index 2)
-  // 1: Idle animation (index 1)
-  
-  // Create animation actions
-  player.actions = {
-    idle: player.mixer.clipAction(fbx.animations[1]),  // Idle - index 1
-    run: player.mixer.clipAction(fbx.animations[2]),   // Run - index 2
-    jump: player.mixer.clipAction(fbx.animations[0])   // Jump - index 0
-  };
-  
-  // Set up crossfade between animations
-  for (let action in player.actions) {
-    player.actions[action].clampWhenFinished = true;
-    player.actions[action].setLoop(THREE.LoopRepeat);
-  }
-  
-  // Special handling for jump (only play once)
-  player.actions.jump.setLoop(THREE.LoopOnce);
-  player.actions.jump.timeScale = 1.2; // Speed up jump animation a bit
-  
-  // Start with idle animation
-  player.currentAction = player.actions.idle;
-  player.currentAction.play();
+player.loadModel(loader, './resources/Dinosaurs/FBX/Velociraptor.fbx', 0.0025, {
+  idle: 1,
+  run: 2,
+  jump: 0
 });
 
 // Ground - SMALLER SIZE
@@ -561,26 +308,27 @@ window.addEventListener('keydown', (event) => {
   switch (event.code) {
     case 'KeyA':
       keys.a.pressed = true
-      if (!player.isJumping) player.setAnimation('run')
+      if (!player.isJumping) player.setAnimation('run',keys)
       break
     case 'KeyD':
       keys.d.pressed = true
-      if (!player.isJumping) player.setAnimation('run')
+      if (!player.isJumping) player.setAnimation('run',keys)
       break
     case 'KeyS':
       keys.s.pressed = true
-      if (!player.isJumping) player.setAnimation('run')
+      if (!player.isJumping) player.setAnimation('run',keys)
       break
     case 'KeyW':
       keys.w.pressed = true
-      if (!player.isJumping) player.setAnimation('run')
+      if (!player.isJumping) player.setAnimation('run',keys)
       break
     case 'Space':
       if (player.isOnGround && !player.isJumping) {
-        player.velocity.y = 0.08
+        player.velocity.y += 0.08
+        player.position.y += player.velocity.y
         player.isJumping = true
         player.isOnGround = false
-        player.setAnimation('jump')
+        player.setAnimation('jump', keys)
 
         // Play jump sound effect
         jumpSound.currentTime = 0 // Reset sound to beginning
@@ -609,7 +357,7 @@ window.addEventListener('keyup', (event) => {
   
   // If no movement keys are pressed and not jumping, go back to idle
   if (!keys.a.pressed && !keys.d.pressed && !keys.s.pressed && !keys.w.pressed && !player.isJumping) {
-    player.setAnimation('idle')
+    player.setAnimation('idle',keys)
   }
 })
 
@@ -794,7 +542,7 @@ function startGame() {
   
   // Reset animation if it exists
   if (player.mixer) {
-    player.setAnimation('idle');
+    player.setAnimation('idle',keys);
   }
 }
 
@@ -851,7 +599,7 @@ function restartGame() {
   
   // Reset animation if it exists
   if (player.mixer) {
-    player.setAnimation('idle');
+    player.setAnimation('idle',keys);
   }
 }
 
@@ -880,7 +628,7 @@ function returnToMenu() {
   
   // Reset animation if it exists
   if (player.mixer) {
-    player.setAnimation('idle');
+    player.setAnimation('idle',keys);
   }
 }
 
@@ -895,7 +643,9 @@ function animate() {
   
   // Update controls
   controls.update()
-  
+  if (player.velocity.y == 0.08){
+  console.log(`Position Y: ${player.position.y}, Velocity Y: ${player.velocity.y}`);
+  }
   // Update animation mixer if it exists
   if (player && player.mixer) {
     player.mixer.update(0.01); // Update animation with fixed time step
@@ -932,13 +682,13 @@ function animate() {
   if (keys.a.pressed) {
     player.velocity.x = -0.05
     if (!player.isJumping) {
-      setAnimation('run')
+      player.setAnimation('run',keys)
       player.rotation.y = Math.PI / 2
     }
   } else if (keys.d.pressed) {
     player.velocity.x = 0.05
     if (!player.isJumping) {
-      player.setAnimation('run')
+      player.setAnimation('run',keys)
       player.rotation.y = -Math.PI / 2 // Turn right
     }
   }
@@ -946,24 +696,24 @@ function animate() {
   if (keys.s.pressed) {
     player.velocity.z = 0.05
     if (!player.isJumping) {
-      player.setAnimation('run')
+      player.setAnimation('run',keys)
       player.rotation.y = Math.PI // Face forward
     }
   } else if (keys.w.pressed) {
     player.velocity.z = -0.05
     if (!player.isJumping) {
-      player.setAnimation('run')
+      player.setAnimation('run',keys)
       player.rotation.y = 0 // Face backward
     }
   }
   
   // If no keys are pressed and not jumping, play idle animation
   if (!keys.a.pressed && !keys.d.pressed && !keys.s.pressed && !keys.w.pressed && !player.isJumping) {
-    player.setAnimation('idle')
+    player.setAnimation('idle',keys)
   }
 
   // Update player
-  player.update(ground)
+  player.update(ground, keys)
   player.updateSides()
   
   // Check for collision with death plane

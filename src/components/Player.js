@@ -43,7 +43,8 @@ export class Player extends THREE.Object3D {
     this.back = this.position.z - this.depth / 2;
   }
 
-  applyGravity(ground) {
+  applyGravity(ground, keys) {
+    console.log("jumping")
     this.velocity.y += this.gravity;
 
     const wasOnGround = this.isOnGround;
@@ -58,9 +59,11 @@ export class Player extends THREE.Object3D {
       this.velocity.y *= friction;
       this.velocity.y = -this.velocity.y;
       this.isOnGround = true;
+      console.log('2')
     } else {
       this.position.y += this.velocity.y;
       this.isOnGround = false;
+      console.log('3')
     }
 
     if (!wasOnGround && this.isOnGround && this.isJumping) {
@@ -73,15 +76,15 @@ export class Player extends THREE.Object3D {
     }
   }
 
-  update(ground) {
+  update(ground, keys) {
     this.updateSides();
     this.position.x += this.velocity.x;
     this.position.z += this.velocity.z;
 
-    this.applyGravity(ground);
+    this.applyGravity(ground, keys);
   }
 
-  setAnimation(name) {
+  setAnimation(name, keys) {
     if (this.animationState === name) return;
 
     if (!this.actions || !this.mixer) return;
