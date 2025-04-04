@@ -5,8 +5,9 @@ import { CloudBackground } from './components/CloudBackground.js';
 import { Player } from './components/Player.js'
 import { Box } from './components/Box.js'
 import { DeathPlane } from './components/DeathPlane.js';
+import { CollisionUtils } from './utils/Utility.js';
+import { Enemy } from './components/Enemy.js';
 
-// Get UI elements
 const startScreen = document.getElementById('start-screen');
 const startButton = document.getElementById('start-button');
 const gameOverScreen = document.getElementById('game-over-screen');
@@ -15,12 +16,9 @@ const menuButton = document.getElementById('menu-button');
 const gameOverScore = document.getElementById('game-over-score');
 const gameOverReason = document.getElementById('game-over-reason');
 
-// Create Audio object for jump sound
 const jumpSound = new Audio('./resources/SFX/Jump.mp3');
-// Create Audio object for 100 point sound
 const pointSound = new Audio('./resources/SFX/Point.wav');
 
-// Create scene with blue fog for depth perception
 const scene = new THREE.Scene()
 const cloudBackground = new CloudBackground(scene);
 const createGradientTexture = () => {
@@ -28,26 +26,19 @@ const createGradientTexture = () => {
   canvas.width = 2;
   canvas.height = 512;
   const context = canvas.getContext('2d');
-  
-  // Create gradient
   const gradient = context.createLinearGradient(0, 0, 0, 512);
-  gradient.addColorStop(0, '#0077ff'); // Top color - blue
-  gradient.addColorStop(0.5, '#80b0ff'); // Mid color - lighter blue
-  gradient.addColorStop(1, '#ffffff'); // Bottom color - almost white
-  
-  // Fill with gradient
+  gradient.addColorStop(0, '#0077ff'); 
+  gradient.addColorStop(0.5, '#80b0ff');
+  gradient.addColorStop(1, '#ffffff'); 
   context.fillStyle = gradient;
   context.fillRect(0, 0, 2, 512);
-  
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
   return texture;
 };
 
-// Set the background to use our gradient texture
 scene.background = createGradientTexture();
 
-// Optional: You can add a distant plane to enhance the horizon effect
 const horizonPlaneGeometry = new THREE.PlaneGeometry(2000, 1000);
 const horizonPlaneMaterial = new THREE.MeshBasicMaterial({
   color: 0xffffff,
@@ -58,45 +49,31 @@ const horizonPlaneMaterial = new THREE.MeshBasicMaterial({
 
 const horizonPlane = new THREE.Mesh(horizonPlaneGeometry, horizonPlaneMaterial);
 horizonPlane.position.set(0, -150, -2000);
-horizonPlane.rotation.x = Math.PI / 2; // Rotate to be horizontal
+horizonPlane.rotation.x = Math.PI / 2; 
 scene.add(horizonPlane);
 
-// Camera setup
 const camera = new THREE.PerspectiveCamera(
   75,
   window.innerWidth / window.innerHeight,
   0.1,
   1000
 )
-camera.position.set(0, 1, 10) // Position camera for better view
+camera.position.set(0, 1, 10);
 
-// Renderer setup
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setSize(window.innerWidth, window.innerHeight)
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
 document.body.appendChild(renderer.domElement)
 
-// Controls setup - limit for gameplay
 const controls = new OrbitControls(camera, renderer.domElement)
 controls.enableDamping = true
 controls.dampingFactor = 0.05
-controls.maxPolarAngle = Math.PI / 2 - 0.1 // Don't allow camera below ground
+controls.maxPolarAngle = Math.PI / 2 - 0.1 
 controls.minDistance = 5
 controls.maxDistance = 15
-controls.target.set(0, 0, 0) // Center the controls
+controls.target.set(0, 0, 0)
 
-
-
-function boxCollision({ box1, box2 }) {
-  const xCollision = box1.right >= box2.left && box1.left <= box2.right
-  const yCollision =
-    box1.bottom + box1.velocity.y <= box2.top && box1.top >= box2.bottom
-  const zCollision = box1.front >= box2.back && box1.back <= box2.front
-  return xCollision && yCollision && zCollision
-}
-
-// Instantiate the player
 const player = new Player({
   width: 1,
   height: 1,
@@ -107,7 +84,6 @@ const player = new Player({
 
 scene.add(player);
 
-// Load the dinosaur model
 const loader = new FBXLoader(); 
 player.loadModel(loader, './resources/Dinosaurs/FBX/Velociraptor.fbx', 0.0025, {
   idle: 1,
@@ -115,11 +91,10 @@ player.loadModel(loader, './resources/Dinosaurs/FBX/Velociraptor.fbx', 0.0025, {
   jump: 0
 });
 
-// Ground - SMALLER SIZE
 const ground = new Box({
-  width: 10,  // Reduced from 30
+  width: 10, 
   height: 0.5,
-  depth: 90,  // Reduced from 50
+  depth: 90,
   color: '#333333',
   position: {
     x: 0,
@@ -159,12 +134,12 @@ visualGround.receiveShadow = true;
 scene.add(visualGround);
 
 const deathPlane = new DeathPlane({
-  width: 30,
+  width: 300,
   height: 0.1,
-  depth: 60,
+  depth: 600,
   position: { x: 0, y: -10, z: 0 },
   color: 0xff0000,
-  showWireframe: true, // Set to false in production
+  showWireframe: false,
   opacity: 0.0
 });
 scene.add(deathPlane);
@@ -277,96 +252,6 @@ cactiToLoad.forEach(cactusFile => {
   });
 });
 
-class Enemy extends THREE.Object3D {
-  constructor({
-    width,
-    height,
-    depth,
-    position = {
-      x: 0,
-      y: 0,
-      z: 0
-    },
-    velocity = {
-      x: 0,
-      y: 0,
-      z: 0
-    },
-    zAcceleration = false
-  }) {
-    super();
-    
-    this.width = width;
-    this.height = height;
-    this.depth = depth;
-    
-    this.position.set(position.x, position.y, position.z);
-    
-    this.right = this.position.x + this.width / 2;
-    this.left = this.position.x - this.width / 2;
-    
-    this.bottom = this.position.y - this.height / 2;
-    this.top = this.position.y + this.height / 2;
-    
-    this.front = this.position.z + this.depth / 2;
-    this.back = this.position.z - this.depth / 2;
-    
-    this.velocity = velocity;
-    this.gravity = -0.002;
-    
-    this.zAcceleration = zAcceleration;
-    
-    if (cactiModels.length > 0) {
-      const randomIndex = Math.floor(Math.random() * cactiModels.length);
-      const cactusModel = cactiModels[randomIndex].clone();
-      cactusModel.visible = true;
-      
-      cactusModel.position.y = -this.height / 2;
-      
-      this.add(cactusModel);
-      const cactusBoxHelper = new THREE.BoxHelper(cactusModel, 0xffff00);  
-      cactusBoxHelper.visible = true; 
-      this.add(cactusBoxHelper); 
-    }
-  }
-  
-  updateSides() {
-    this.right = this.position.x + this.width / 2;
-    this.left = this.position.x - this.width / 2;
-    
-    this.bottom = this.position.y - this.height / 2;
-    this.top = this.position.y + this.height / 2;
-    
-    this.front = this.position.z + this.depth / 2;
-    this.back = this.position.z - this.depth / 2;
-  }
-  
-  update(ground) {
-    this.updateSides();
-    
-    if (this.zAcceleration) this.velocity.z += 0.0003;
-    
-    this.position.x += this.velocity.x;
-    this.position.z += this.velocity.z;
-    
-    this.applyGravity(ground);
-  }
-  
-  applyGravity(ground) {
-    this.velocity.y += this.gravity;
-    
-    if (
-      boxCollision({
-        box1: this,
-        box2: ground
-      })
-    ) {
-      const friction = 0.5;
-      this.velocity.y *= friction;
-      this.velocity.y = -this.velocity.y;
-    } else this.position.y += this.velocity.y;
-  }
-}
 
 function handleGameOver(reason) {
   gameOverScore.textContent = `Score: ${score}`;
@@ -416,20 +301,15 @@ function updateScoreDisplay() {
   scoreDisplay.textContent = `Score: ${score}`;
 }
 
-// Get the current time in milliseconds
 function getCurrentTime() {
   return new Date().getTime()
 }
 
-// Function to restart the game
 function restartGame() {
-  // Hide game over screen
   gameOverScreen.style.display = 'none';
   
-  // Show score display
   scoreDisplay.style.display = 'block';
   
-  // Reset game state
   gameOver = false;
   score = 0;
   frames = 0;
@@ -437,13 +317,11 @@ function restartGame() {
   lastScoreUpdateTime = getCurrentTime();
   updateScoreDisplay();
   
-  // Remove all existing enemies
   enemies.forEach(enemy => {
     scene.remove(enemy);
   });
   enemies.length = 0;
   
-  // Reset player position and velocity
   player.position.set(0, 0, 0);
   player.velocity.x = 0;
   player.velocity.y = -0.01;
@@ -452,27 +330,21 @@ function restartGame() {
   player.isJumping = false;
   player.isOnGround = false;
   
-  // Reset animation if it exists
   if (player.mixer) {
     player.setAnimation('idle',keys);
   }
 }
 
-// Function to return to main menu
 function returnToMenu() {
-  // Hide game over screen
   gameOverScreen.style.display = 'none';
   
-  // Show start screen
   startScreen.style.display = 'flex';
   
-  // Remove all existing enemies
   enemies.forEach(enemy => {
     scene.remove(enemy);
   });
   enemies.length = 0;
   
-  // Reset player position and velocity
   player.position.set(0, 0, 0);
   player.velocity.x = 0;
   player.velocity.y = -0.01;
@@ -481,59 +353,40 @@ function returnToMenu() {
   player.isJumping = false;
   player.isOnGround = false;
   
-  // Reset animation if it exists
   if (player.mixer) {
     player.setAnimation('idle',keys);
   }
 }
 
-// Add event listeners for UI buttons
 startButton.addEventListener('click', startGame);
 restartButton.addEventListener('click', restartGame);
 menuButton.addEventListener('click', returnToMenu);
 
-// Animation loop
 function animate() {
   const animationId = requestAnimationFrame(animate)
-  
-  // Update controls
   controls.update()
-  if (player.velocity.y == 0.08){
-  console.log(`Position Y: ${player.position.y}, Velocity Y: ${player.velocity.y}`);
-  }
-  // Update animation mixer if it exists
-  if (player && player.mixer) {
-    player.mixer.update(0.01); // Update animation with fixed time step
-  }
-  if (cloudBackground) {
-    cloudBackground.update(0.016);
-}
-  // Render scene
+  if (player && player.mixer) { player.mixer.update(0.01);}
+  if (cloudBackground) { cloudBackground.update(0.016); }
   renderer.render(scene, camera)
   
   if (gameOver) return
 
-  // Update death plane sides
   deathPlane.updateSides();
 
-  // Update score based on time survived
   const currentTime = getCurrentTime()
   if (currentTime - lastScoreUpdateTime >= scoreUpdateInterval) {
     if (score % 100 == 0 && score > 0) {
-      // Play jump sound effect
-      pointSound.currentTime = 0 // Reset sound to beginning
+      pointSound.currentTime = 0 
       pointSound.play().catch(e => console.error("Error playing point sound:", e))
     }
-    score += 1 // Increase score by 1 point every 100ms
+    score += 1 
     updateScoreDisplay()
     lastScoreUpdateTime = currentTime
   }
 
-  // Player movement
   player.velocity.x = 0
   player.velocity.z = 0
   
-  // Only allow movement control if not in jumping animation
   if (keys.a.pressed) {
     player.velocity.x = -0.05
     if (!player.isJumping) {
@@ -544,7 +397,7 @@ function animate() {
     player.velocity.x = 0.05
     if (!player.isJumping) {
       player.setAnimation('run',keys)
-      player.rotation.y = -Math.PI / 2 // Turn right
+      player.rotation.y = -Math.PI / 2 
     }
   }
 
@@ -552,28 +405,25 @@ function animate() {
     player.velocity.z = 0.05
     if (!player.isJumping) {
       player.setAnimation('run',keys)
-      player.rotation.y = Math.PI // Face forward
+      player.rotation.y = Math.PI
     }
   } else if (keys.w.pressed) {
     player.velocity.z = -0.05
     if (!player.isJumping) {
       player.setAnimation('run',keys)
-      player.rotation.y = 0 // Face backward
+      player.rotation.y = 0 
     }
   }
   
-  // If no keys are pressed and not jumping, play idle animation
   if (!keys.a.pressed && !keys.d.pressed && !keys.s.pressed && !keys.w.pressed && !player.isJumping) {
-    player.setAnimation('idle',keys)
+    player.setAnimation('idle', keys)
   }
 
-  // Update player
   player.update(ground, keys)
   player.updateSides()
   
-  // Check for collision with death plane
   if (
-    boxCollision({
+    CollisionUtils.boxCollision({
       box1: player,
       box2: deathPlane
     })
@@ -582,40 +432,47 @@ function animate() {
     return;
   }
 
-  // Update enemies
-  enemies.forEach((enemy) => {
-    enemy.update(ground)
-    if (
-      boxCollision({
-        box1: player,
-        box2: enemy
-      })
-    ) {
-      handleGameOver("You hit a cactus!");
-    }
-  })
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const enemy = enemies[i];
+    const shouldRemove = enemy.update(ground);
     
-  // Spawn enemies - using cactus models
+    if (enemy.checkCollision(player)) {
+      handleGameOver("You hit a cactus!");
+      break;
+    }
+    
+    if (shouldRemove) {
+      scene.remove(enemy);
+      enemies.splice(i, 1);
+    }
+  }
+    
   if (frames % spawnRate === 0) {
     if (spawnRate > 20) spawnRate -= 5;
-
-    // Make sure we've loaded at least one cactus model
+  
     if (cactiModels.length > 0) {
+      const getCactusModel = () => {
+        const randomIndex = Math.floor(Math.random() * cactiModels.length);
+        return cactiModels[randomIndex].clone();
+      };
+      
       const enemy = new Enemy({
         width: 1,
-        height: 1, // Make the cacti taller for collision
+        height: 1,
         depth: 1,
         position: {
-          x: (Math.random() - 0.5) * 8, // Reduced spawn area width
+          x: (Math.random() - 0.5) * 8,
           y: 0,
-          z: -20 // Spawn further back
+          z: -20
         },
         velocity: {
           x: 0,
           y: 0,
-          z: 0.05 + Math.random() * 0.02 // Slightly randomize speed
+          z: 0.05 + Math.random() * 0.02
         },
-        zAcceleration: true
+        zAcceleration: true,
+        modelProvider: getCactusModel,
+        showCollisionBox: false 
       });
       
       scene.add(enemy);
@@ -626,11 +483,9 @@ function animate() {
   frames++
 }
 
-// Initialize the score display and start time before the game begins
 updateScoreDisplay()
 lastScoreUpdateTime = getCurrentTime()
 
 gameOver = true
 
-// Start the game
 animate()
