@@ -3,6 +3,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { CloudBackground } from './components/CloudBackground.js';
 import { Player } from './components/Player.js'
+import { Box } from './components/Box.js'
+import { DeathPlane } from './components/DeathPlane.js';
 
 // Get UI elements
 const startScreen = document.getElementById('start-screen');
@@ -84,88 +86,7 @@ controls.minDistance = 5
 controls.maxDistance = 15
 controls.target.set(0, 0, 0) // Center the controls
 
-class Box extends THREE.Mesh {
-  constructor({
-    width,
-    height,
-    depth,
-    color = '#00ff00',
-    velocity = {
-      x: 0,
-      y: 0,
-      z: 0
-    },
-    position = {
-      x: 0,
-      y: 0,
-      z: 0
-    },
-    zAcceleration = false
-  }) {
-    // Use MeshPhongMaterial instead of MeshStandardMaterial for better performance
-    const material = new THREE.MeshPhongMaterial({ color })
-    const geometry = new THREE.BoxGeometry(width, height, depth)
-    super(geometry, material)
 
-    this.width = width
-    this.height = height
-    this.depth = depth
-
-    this.position.set(position.x, position.y, position.z)
-
-    this.right = this.position.x + this.width / 2
-    this.left = this.position.x - this.width / 2
-
-    this.bottom = this.position.y - this.height / 2
-    this.top = this.position.y + this.height / 2
-
-    this.front = this.position.z + this.depth / 2
-    this.back = this.position.z - this.depth / 2
-
-    this.velocity = velocity
-    this.gravity = -0.002
-
-    this.zAcceleration = zAcceleration
-  }
-
-  updateSides() {
-    this.right = this.position.x + this.width / 2
-    this.left = this.position.x - this.width / 2
-
-    this.bottom = this.position.y - this.height / 2
-    this.top = this.position.y + this.height / 2
-
-    this.front = this.position.z + this.depth / 2
-    this.back = this.position.z - this.depth / 2
-  }
-
-  update(ground) {
-    this.updateSides()
-
-    if (this.zAcceleration) this.velocity.z += 0.0003
-
-    this.position.x += this.velocity.x
-    this.position.z += this.velocity.z
-
-    this.applyGravity(ground)
-  }
-
-  applyGravity(ground) {
-    this.velocity.y += this.gravity
-
-    // this is where we hit the ground
-    if (
-      boxCollision({
-        box1: this,
-        box2: ground
-      })
-    ) {
-      const friction = 0.5
-      this.velocity.y *= friction
-      this.velocity.y = -this.velocity.y
-    } else this.position.y += this.velocity.y
-  }
-}
 
 function boxCollision({ box1, box2 }) {
   const xCollision = box1.right >= box2.left && box1.left <= box2.right
@@ -210,21 +131,17 @@ ground.receiveShadow = true
 scene.add(ground)
 
 const textureLoader = new THREE.TextureLoader();
-// Load road texture
 const roadTexture = textureLoader.load('./resources/Textures/DirtRoad.jpg', function(texture) {
-  // Enable texture repeating
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(1, 2); // Repeat the texture horizontally and vertically
+  texture.repeat.set(1, 2); 
   
-  // Update ground material with the texture
   ground.material = new THREE.MeshPhongMaterial({
-    color: 0xFFFFFF, // White base color to not tint the texture
-    map: texture,  // Apply the texture
+    color: 0xFFFFFF,
+    map: texture,
     shininess: 10
   });
   
-  // Make sure the texture is applied to all sides of the box
   ground.material.needsUpdate = true;
 });
 
@@ -235,54 +152,23 @@ const visualGroundMaterial = new THREE.MeshPhongMaterial({
 });
 
 const visualGround = new THREE.Mesh(visualGroundGeometry, visualGroundMaterial);
-visualGround.rotation.x = Math.PI / 2; // Rotate to be horizontal
-visualGround.position.set(0, -1.99, 0); // Position it just above the collision ground
+visualGround.rotation.x = Math.PI / 2; 
+visualGround.position.set(0, -1.99, 0);
 visualGround.receiveShadow = true;
 
-// Add both to the scene
 scene.add(visualGround);
 
-// Add a death plane below the ground
-const deathPlaneGeometry = new THREE.PlaneGeometry(30, 60);
-const deathPlaneMaterial = new THREE.MeshBasicMaterial({ 
+const deathPlane = new DeathPlane({
+  width: 30,
+  height: 0.1,
+  depth: 60,
+  position: { x: 0, y: -10, z: 0 },
   color: 0xff0000,
-  transparent: true,
-  opacity: 0.0, // Completely invisible
-  side: THREE.DoubleSide
+  showWireframe: true, // Set to false in production
+  opacity: 0.0
 });
-
-const deathPlane = new THREE.Mesh(deathPlaneGeometry, deathPlaneMaterial);
-deathPlane.position.set(0, -10, 0); // Position it well below the ground
-deathPlane.rotation.x = Math.PI / 2; // Rotate to be horizontal
-
-// Add collision properties to the death plane
-deathPlane.width = 30;
-deathPlane.height = 0.1; // Thin height for collision detection
-deathPlane.depth = 60;
-deathPlane.left = deathPlane.position.x - deathPlane.width / 2;
-deathPlane.right = deathPlane.position.x + deathPlane.width / 2;
-deathPlane.bottom = deathPlane.position.y - deathPlane.height / 2;
-deathPlane.top = deathPlane.position.y + deathPlane.height / 2;
-deathPlane.front = deathPlane.position.z + deathPlane.depth / 2;
-deathPlane.back = deathPlane.position.z - deathPlane.depth / 2;
-deathPlane.updateSides = function() {
-  this.left = this.position.x - this.width / 2;
-  this.right = this.position.x + this.width / 2;
-  this.bottom = this.position.y - this.height / 2;
-  this.top = this.position.y + this.height / 2;
-  this.front = this.position.z + this.depth / 2;
-  this.back = this.position.z - this.depth / 2;
-};
-
-// Add a wireframe outline to make the death plane visible
-const wireframeGeometry = new THREE.EdgesGeometry(deathPlaneGeometry);
-const wireframeMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
-const wireframe = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
-
-deathPlane.add(wireframe);
 scene.add(deathPlane);
 
-// Add strong directional light
 const directionalLight = new THREE.DirectionalLight(0xffffff, 1)
 directionalLight.position.set(0, 10, 5)
 directionalLight.castShadow = true
@@ -290,11 +176,9 @@ directionalLight.shadow.mapSize.width = 1024
 directionalLight.shadow.mapSize.height = 1024
 scene.add(directionalLight)
 
-// Add ambient light for overall illumination
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
 scene.add(ambientLight)
 
-// Input controls
 const keys = {
   a: { pressed: false },
   d: { pressed: false },
@@ -302,9 +186,7 @@ const keys = {
   w: { pressed: false }
 }
 
-// Update the keydown event listener to handle jump animation
 window.addEventListener('keydown', (event) => {
-  // Game is active, process normal controls
   switch (event.code) {
     case 'KeyA':
       keys.a.pressed = true
@@ -330,15 +212,13 @@ window.addEventListener('keydown', (event) => {
         player.isOnGround = false
         player.setAnimation('jump', keys)
 
-        // Play jump sound effect
-        jumpSound.currentTime = 0 // Reset sound to beginning
+        jumpSound.currentTime = 0 
         jumpSound.play().catch(e => console.error("Error playing jump sound:", e))
       }
       break
   }
 })
 
-// Update the keyup event listener
 window.addEventListener('keyup', (event) => {
   switch (event.code) {
     case 'KeyA':
@@ -355,58 +235,48 @@ window.addEventListener('keyup', (event) => {
       break
   }
   
-  // If no movement keys are pressed and not jumping, go back to idle
   if (!keys.a.pressed && !keys.d.pressed && !keys.s.pressed && !keys.w.pressed && !player.isJumping) {
     player.setAnimation('idle',keys)
   }
 })
 
-// Handle window resize
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight
   camera.updateProjectionMatrix()
   renderer.setSize(window.innerWidth, window.innerHeight)
 })
 
-// Cactus enemy implementation
-let cactiModels = []; // To store the loaded cactus models
+let cactiModels = []; 
 
-// Load the cactus models
 const fbxLoader = new FBXLoader();
 fbxLoader.setPath('./resources/DesertPack/FBX/');
 
-// Load all three cactus models
 const cactiToLoad = ['Cactus2.fbx', 'Cactus3.fbx'];
 let loadedCount = 0;
 
 cactiToLoad.forEach(cactusFile => {
   fbxLoader.load(cactusFile, (fbx) => {
-    fbx.scale.setScalar(0.01); // Scale down the model
+    fbx.scale.setScalar(0.01);
     
-    // Apply materials and shadows
     fbx.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
-        // Apply a green material to make it more cactus-like
         child.material = new THREE.MeshPhongMaterial({
-          color: 0x2e8b57, // Sea green color
+          color: 0x2e8b57, 
           shininess: 0
         });
       }
     });
     
-    // Store the model
     cactiModels.push(fbx);
     loadedCount++;
     
-    // Clone the model for better performance
-    fbx.visible = false; // Hide the original model
-    scene.add(fbx); // Add to scene but keep invisible
+    fbx.visible = false; 
+    scene.add(fbx);
   });
 });
 
-// Modify the enemy class to use cactus models
 class Enemy extends THREE.Object3D {
   constructor({
     width,
@@ -446,19 +316,16 @@ class Enemy extends THREE.Object3D {
     
     this.zAcceleration = zAcceleration;
     
-    // Add a random cactus model to this enemy
     if (cactiModels.length > 0) {
       const randomIndex = Math.floor(Math.random() * cactiModels.length);
       const cactusModel = cactiModels[randomIndex].clone();
       cactusModel.visible = true;
       
-      // Position the model at the center of the collision box
       cactusModel.position.y = -this.height / 2;
       
-      // Add the model to this enemy object
       this.add(cactusModel);
-      const cactusBoxHelper = new THREE.BoxHelper(cactusModel, 0xffff00);  // Yellow color for collision box
-      cactusBoxHelper.visible = true;  // Make it visible
+      const cactusBoxHelper = new THREE.BoxHelper(cactusModel, 0xffff00);  
+      cactusBoxHelper.visible = true; 
       this.add(cactusBoxHelper); 
     }
   }
@@ -501,29 +368,21 @@ class Enemy extends THREE.Object3D {
   }
 }
 
-// Function to handle game over
 function handleGameOver(reason) {
-  // Update game over screen
   gameOverScore.textContent = `Score: ${score}`;
   gameOverReason.textContent = reason;
   
-  // Show game over screen
   gameOverScreen.style.display = 'flex';
   document.getElementById('score-display').style.display = 'none';
   
-  // Set game state
   gameOver = true;
 }
 
-// Function to start the game
 function startGame() {
-  // Hide start screen
   startScreen.style.display = 'none';
   
-  // Show score display
   scoreDisplay.style.display = 'block';
   
-  // Reset game state
   gameOver = false;
   score = 0;
   frames = 0;
@@ -531,7 +390,6 @@ function startGame() {
   lastScoreUpdateTime = getCurrentTime();
   updateScoreDisplay();
   
-  // Reset player position and velocity
   player.position.set(0, 0, 0);
   player.velocity.x = 0;
   player.velocity.y = -0.01;
@@ -540,13 +398,11 @@ function startGame() {
   player.isJumping = false;
   player.isOnGround = false;
   
-  // Reset animation if it exists
   if (player.mixer) {
     player.setAnimation('idle',keys);
   }
 }
 
-// Game state
 const enemies = []
 let frames = 0
 let spawnRate = 120
@@ -554,9 +410,8 @@ let gameOver = false
 let score = 0;
 let scoreDisplay = document.getElementById('score-display');
 let lastScoreUpdateTime = 0
-const scoreUpdateInterval = 100 // Update score every 100ms
+const scoreUpdateInterval = 100
 
-// Function to update the score display
 function updateScoreDisplay() {
   scoreDisplay.textContent = `Score: ${score}`;
 }
